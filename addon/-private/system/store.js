@@ -28,6 +28,7 @@ import {
 
 import { normalizeResponseHelper } from "./store/serializer-response";
 import { serializerForAdapter } from "./store/serializers";
+import RelationshipsPayloads from './relationships/relationships-payloads';
 
 import {
   _find,
@@ -220,6 +221,7 @@ Store = Service.extend({
     this._pendingSave = [];
     this._instanceCache = new ContainerInstanceCache(getOwner(this), this);
     this._modelFactoryCache = new EmptyObject();
+    this._relationshipsPayloads = new RelationshipsPayloads(this);
 
     /*
       Ember Data uses several specialized micro-queues for organizing
@@ -2788,19 +2790,76 @@ function _commit(adapter, store, operation, snapshot) {
   }, label);
 }
 
+function inverseRelationshipInitialized(store, internalModel, data, key) {
+  let relationshipData = data.relationships[key].data;
+
+  if (!relationshipData) {
+    // can't check inverse for eg { comments: { links: { related: URL }}}
+    return false;
+  }
+
+  // TODO: internalModel.type will reify
+  let inverseData = internalModel.type.inverseFor(key, store);
+  if (!inverseData) {
+    return false;
+  }
+
+  let { name: inverseRelationshipName } = inverseData;
+
+  if (Array.isArray(relationshipData)) {
+    for (let i=0; i<relationshipData.length; ++i) {
+      let inverseInternalModel = store._internalModelsFor(relationshipData[i].type).get(relationshipData[i].id);
+      if (inverseInternalModel && inverseInternalModel._relationships.has(inverseRelationshipName)) {
+        return true;
+      }
+    }
+
+    return false;
+  } else {
+    let inverseInternalModel = store._internalModelsFor(relationshipData.type).get(relationshipData.id);
+    return inverseInternalModel && inverseInternalModel._relationships.has(inverseRelationshipName);
+  }
+}
+
 function setupRelationships(store, internalModel, data) {
   if (!data.relationships) {
     return;
   }
 
-  internalModel.type.eachRelationship((key, descriptor) => {
-    if (!data.relationships[key]) {
-      return;
-    }
+  let relationships = internalModel._relationships;
 
-    let relationship = internalModel._relationships.get(key);
-    relationship.push(data.relationships[key]);
-  });
+  for (let key in data.relationships) {
+    let relationshipRequiresNotification =
+      relationships.has(key) ||
+      inverseRelationshipInitialized(store, internalModel, data, key);
+
+    if (relationshipRequiresNotification) {
+      let relationshipData = data.relationships[key];
+      relationships.get(key).push(relationshipData);
+    } else {
+      // in debug, assert payload validity eagerly
+      runInDebug(() => {
+        let relationshipMeta = get(internalModel.type, 'relationshipsByName').get(key);
+        let relationshipData = data.relationships[key];
+        if (!relationshipData || !relationshipMeta) {
+          return;
+        }
+
+        if (relationshipData.links) {
+          let isAsync = relationshipMeta.options && relationshipMeta.options.async !== false;
+          warn(`You pushed a record of type '${internalModel.type.modelName}' with a relationship '${key}' configured as 'async: false'. You've included a link but no primary data, this may be an error in your payload.`, isAsync || relationshipData.data , {
+            id: 'ds.store.push-link-for-sync-relationship'
+          });
+        } else if (relationshipData.data) {
+          if (relationshipMeta.kind === 'belongsTo') {
+            assert(`A ${internalModel.type.modelName} record was pushed into the store with the value of ${key} being ${inspect(relationshipData.data)}, but ${key} is a belongsTo relationship so the value must not be an array. You should probably check your data payload or serializer.`, !Array.isArray(relationshipData.data));
+          } else if (relationshipMeta.kind === 'hasMany') {
+            assert(`A ${internalModel.type.modelName} record was pushed into the store with the value of ${key} being '${inspect(relationshipData.data)}', but ${key} is a hasMany relationship so the value must be an array. You should probably check your data payload or serializer.`, Array.isArray(relationshipData.data));
+          }
+        }
+      });
+    }
+  }
 }
 
 export { Store };

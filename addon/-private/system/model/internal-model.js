@@ -505,6 +505,7 @@ export default class InternalModel {
     assert("Cannot destroy an internalModel while its record is materialized", !this.record || this.record.get('isDestroyed') || this.record.get('isDestroying'));
 
     this.store._removeFromIdMap(this);
+    this.store._relationshipsPayloads.unload(this.modelName, this.id);
     this._isDestroyed = true;
   }
 
@@ -518,6 +519,8 @@ export default class InternalModel {
 
   setupData(data) {
     heimdall.increment(setupData);
+    this.store._relationshipsPayloads.push(this.modelName, this.id, data.relationships);
+
     let changedKeys = this._changedKeys(data.attributes);
     assign(this._data, data.attributes);
     this.pushedData();
@@ -988,6 +991,8 @@ export default class InternalModel {
   */
   adapterDidCommit(data) {
     if (data) {
+      this.store._relationshipsPayloads.push(this.modelName, this.id, data.relationships);
+
       data = data.attributes;
     }
 
