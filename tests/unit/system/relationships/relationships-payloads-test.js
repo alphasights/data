@@ -1,7 +1,10 @@
+import Ember from 'ember';
 import RelationshipsPayloads from 'ember-data/-private/system/relationships/relationships-payloads';
 import DS from 'ember-data';
 import {createStore} from 'dummy/tests/helpers/store';
 import {module, test} from 'qunit';
+
+const { get } = Ember;
 
 module('unit/system/relationships/relationships-payloads', {
   beforeEach() {
@@ -58,7 +61,7 @@ test('get returns null for invalid relationships', function(assert) {
   assert.equal(entry, null, 'nothing returned for invalid relationship');
 });
 
-test('get reuturns null if there are no payloads', function(assert) {
+test('get returns null if there are no payloads', function(assert) {
   this.relationshipsPayloads.push('user', 1, {
     hobbies: {
       data: [{
@@ -103,22 +106,13 @@ test('get returns direct payloads', function(assert) {
   });
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
-  assert.deepEqual(entry, {
-    payload: purposePayload,
-    inverse: false
-  }, 'direct one-to-one payload loaded');
+  assert.deepEqual(entry, purposePayload, 'direct one-to-one payload loaded');
 
   entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
-  assert.deepEqual(entry, {
-    payload: hobbyPayload,
-    inverse: false
-  }, 'direct one-to-many payload loaded');
+  assert.deepEqual(entry, hobbyPayload, 'direct one-to-many payload loaded');
 
   entry = this.relationshipsPayloads.get('user', 1, 'friends');
-  assert.deepEqual(entry, {
-    payload: friendsPayload,
-    inverse: false
-  }, 'direct many-to-many payload loaded');
+  assert.deepEqual(entry, friendsPayload, 'direct many-to-many payload loaded');
 });
 
 test('get returns inverse payloads one-to-one', function(assert) {
@@ -133,13 +127,10 @@ test('get returns inverse payloads one-to-one', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 2,
-        type: 'purpose'
-      }
-    },
-    inverse: true
+    data: {
+      id: 2,
+      type: 'purpose'
+    }
   }, 'inverse one-to-one payload loaded');
 });
 
@@ -158,24 +149,18 @@ test('get returns inverse payloads one-to-many', function(assert) {
 
   let entry = this.relationshipsPayloads.get('hobby', 2, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'inverse one-to-many payload loaded');
 
   entry = this.relationshipsPayloads.get('hobby', 3, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'inverse one-to-many payload loaded');
 });
 
@@ -191,24 +176,18 @@ test('get handles inverse payloads that unset one-to-one', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 2,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 2,
+      type: 'purpose'
+    }
   }, 'user.purpose.id is initially 2');
 
   entry = this.relationshipsPayloads.get('purpose', 2, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'purpose.user.id is initially 1');
 
   this.relationshipsPayloads.push('purpose', 2, {
@@ -219,10 +198,7 @@ test('get handles inverse payloads that unset one-to-one', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: null
-    },
-    inverse: true
+    data: null
   }, 'inverse payload unset one-to-one');
 });
 
@@ -238,24 +214,18 @@ test('get handles inverse payloads that change one-to-one', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 2,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 2,
+      type: 'purpose'
+    }
   }, 'user.purpose.id is initially 2');
 
   entry = this.relationshipsPayloads.get('purpose', 2, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'purpose.user.id is initially 1');
 
   this.relationshipsPayloads.push('purpose', 2, {
@@ -269,21 +239,15 @@ test('get handles inverse payloads that change one-to-one', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: null
-    },
-    inverse: true
+    data: null
   }, 'inverse payload unset one-to-one');
 
   entry = this.relationshipsPayloads.get('user', 2, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 2,
-        type: 'purpose'
-      }
-    },
-    inverse: true
+    data: {
+      id: 2,
+      type: 'purpose'
+    }
   }, 'inverse payload changed one-to-one');
 });
 
@@ -302,38 +266,29 @@ test('get handles inverse payloads that remove one-to-many', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'hobby'
-      }, {
-        id: 3,
-        type: 'hobby'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'hobby'
+    }, {
+      id: 3,
+      type: 'hobby'
+    }]
   }, 'user.hobbies.ids is initially 2,3');
 
   entry = this.relationshipsPayloads.get('hobby', 2, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'hobby(2).user.id is initially 1');
 
   entry = this.relationshipsPayloads.get('hobby', 3, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'hobby(3).user.id is initially 1');
 
   this.relationshipsPayloads.push('hobby', 2, {
@@ -344,13 +299,10 @@ test('get handles inverse payloads that remove one-to-many', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 3,
-        type: 'hobby'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 3,
+      type: 'hobby'
+    }]
   }, 'inverse payload removes from one-to-many');
 });
 
@@ -369,38 +321,29 @@ test('get handles inverse payloads that add one-to-many', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'hobby'
-      }, {
-        id: 3,
-        type: 'hobby'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'hobby'
+    }, {
+      id: 3,
+      type: 'hobby'
+    }]
   }, 'user.hobbies.ids is initially 2,3');
 
   entry = this.relationshipsPayloads.get('hobby', 2, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'hobby(2).user.id is initially 1');
 
   entry = this.relationshipsPayloads.get('hobby', 3, 'user');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'user'
-      }
-    },
-    inverse: true
+    data: {
+      id: 1,
+      type: 'user'
+    }
   }, 'hobby(3).user.id is initially 1');
 
   this.relationshipsPayloads.push('hobby', 4, {
@@ -414,19 +357,16 @@ test('get handles inverse payloads that add one-to-many', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'hobby'
-      }, {
-        id: 3,
-        type: 'hobby'
-      }, {
-        id: 4,
-        type: 'hobby'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'hobby'
+    }, {
+      id: 3,
+      type: 'hobby'
+    }, {
+      id: 4,
+      type: 'hobby'
+    }]
   }, 'inverse payload adds to one-to-many');
 });
 
@@ -445,16 +385,13 @@ test('get handles inverse payloads that remove many-to-many', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'friends');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'user'
-      }, {
-        id: 3,
-        type: 'user'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'user'
+    }, {
+      id: 3,
+      type: 'user'
+    }]
   }, 'user.friends.ids is initially 2,3');
 
   this.relationshipsPayloads.push('user', 3, {
@@ -465,13 +402,10 @@ test('get handles inverse payloads that remove many-to-many', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'friends');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'user'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'user'
+    }]
   }, 'inverse payload removes from many-to-many');
 });
 
@@ -490,16 +424,13 @@ test('get handles inverse payloads that add many-to-many', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'friends');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'user'
-      }, {
-        id: 3,
-        type: 'user'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'user'
+    }, {
+      id: 3,
+      type: 'user'
+    }]
   }, 'user.friends.ids is initially 2,3');
 
   this.relationshipsPayloads.push('user', 4, {
@@ -513,24 +444,20 @@ test('get handles inverse payloads that add many-to-many', function(assert) {
 
   entry = this.relationshipsPayloads.get('user', 1, 'friends');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'user'
-      }, {
-        id: 3,
-        type: 'user'
-      }, {
-        id: 4,
-        type: 'user'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'user'
+    }, {
+      id: 3,
+      type: 'user'
+    }, {
+      id: 4,
+      type: 'user'
+    }]
   }, 'inverse payload adds to many-to-many');
 });
 
 test('push populates the same RelationshipPayloads for either side of a relationship', function(assert) {
-
   this.relationshipsPayloads.push('user', 1, {
     hobbies: [{
       id: 2,
@@ -538,8 +465,24 @@ test('push populates the same RelationshipPayloads for either side of a relation
     }]
   });
 
-  let userPayloads = this.relationshipsPayloads._getRelationshipPayloads('user', 'hobbies');
-  let hobbyPayloads = this.relationshipsPayloads._getRelationshipPayloads('hobby', 'user');
+  let userModel = this.store.modelFor('user');
+
+  let userPayloads =
+    this.relationshipsPayloads._getRelationshipPayloads(
+      'user',
+      'hobbies',
+      userModel,
+      get(userModel, 'relationshipsByName')
+  );
+
+  let hobbyModel = this.store.modelFor('hobby');
+  let hobbyPayloads =
+    this.relationshipsPayloads._getRelationshipPayloads(
+      'hobby',
+      'user',
+      hobbyModel,
+      get(hobbyModel, 'relationshipsByName')
+    );
 
   assert.equal(userPayloads, hobbyPayloads, 'both sides of a relationship share a RelationshipPayloads');
 });
@@ -554,7 +497,14 @@ test('push does not eagerly populate inverse payloads', function(assert) {
     }
   });
 
-  let relationshipPayloads = this.relationshipsPayloads._getRelationshipPayloads('user', 'hobbies');
+  let userModel = this.store.modelFor('user');
+  let relationshipPayloads =
+    this.relationshipsPayloads._getRelationshipPayloads(
+      'user',
+      'hobbies',
+      userModel,
+      get(userModel, 'relationshipsByName')
+  );
 
   assert.deepEqual(
     Object.keys(relationshipPayloads._lhsPayloads),
@@ -605,35 +555,26 @@ test('push populates each individual relationship in a payload', function(assert
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 3,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 3,
+      type: 'purpose'
+    }
   }, 'user.purpose is loaded');
 
   entry = this.relationshipsPayloads.get('user', 1, 'friends');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 3,
-        type: 'user'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 3,
+      type: 'user'
+    }]
   }, 'user.friends is loaded');
 
   entry = this.relationshipsPayloads.get('user', 1, 'hobbies');
   assert.deepEqual(entry, {
-    payload: {
-      data: [{
-        id: 2,
-        type: 'hobby'
-      }]
-    },
-    inverse: false
+    data: [{
+      id: 2,
+      type: 'hobby'
+    }]
   }, 'user.hobbies is loaded');
 });
 
@@ -658,13 +599,10 @@ test('push ignores invalid relationships in a payload', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 3,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 3,
+      type: 'purpose'
+    }
   }, 'user.purpose is loaded');
 });
 
@@ -680,13 +618,10 @@ test('unload unloads payloads that have no inverse', function(assert) {
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 1,
+      type: 'purpose'
+    }
   }, 'payload is initially loaded');
 
   this.relationshipsPayloads.unload('user', 1, 'purpose');
@@ -707,13 +642,10 @@ test('unload unloads payloads with inverse only when if the inverse is already u
 
   let entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 1,
+      type: 'purpose'
+    }
   }, 'payload is initially loaded');
 
   this.store.hasRecordForId = (modelName, id) => {
@@ -724,13 +656,10 @@ test('unload unloads payloads with inverse only when if the inverse is already u
 
   entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.deepEqual(entry, {
-    payload: {
-      data: {
-        id: 1,
-        type: 'purpose'
-      }
-    },
-    inverse: false
+    data: {
+      id: 1,
+      type: 'purpose'
+    }
   }, 'payload is not unloaded while inverse remains in store');
 
   this.store.hasRecordForId = () => false;
@@ -739,4 +668,65 @@ test('unload unloads payloads with inverse only when if the inverse is already u
 
   entry = this.relationshipsPayloads.get('user', 1, 'purpose');
   assert.equal(entry, null, 'payload is unloaded when inverse is not in store');
+});
+
+test('get can retrieve payloads with self-links in reflexive relationships', function(assert) {
+  let friendsPayload = {
+    data: [{
+      id: 1,
+      type: 'user'
+    }]
+  };
+  this.relationshipsPayloads.push('user', 1, {
+    friends: friendsPayload
+  });
+
+  let entry = this.relationshipsPayloads.get('user', 1, 'friends');
+  assert.deepEqual(entry, friendsPayload, 'self-link in reflexive relationship');
+});
+
+test('RelationshipPayloads._{lhs,rhs}RelationshipIsMany returns true for hasMany relationships', function(assert) {
+  this.relationshipsPayloads.push('user', 1, {
+    purpose: {
+      data: null
+    },
+    hobbies: {
+      data: []
+    },
+    friends: {
+      data: []
+    }
+  });
+
+  let userModel = this.store.modelFor('user');
+  let relationshipPayloads =
+    this.relationshipsPayloads._getRelationshipPayloads(
+      'user',
+      'friends',
+      userModel,
+      get(userModel, 'relationshipsByName')
+    );
+
+  assert.equal(relationshipPayloads._lhsRelationshipIsMany, true, 'lhsRelationshipIsMany');
+  assert.equal(relationshipPayloads._rhsRelationshipIsMany, true, 'rhsRelationshipIsMany');
+});
+
+test('RelationshipPayloads._{lhs,rhs}RelationshipIsMany returns false for belongsTo relationships', function(assert) {
+  this.relationshipsPayloads.push('user', 1, {
+    purpose: {
+      data: null
+    }
+  });
+
+  let userModel = this.store.modelFor('user');
+  let relationshipPayloads =
+    this.relationshipsPayloads._getRelationshipPayloads(
+      'user',
+      'purpose',
+      userModel,
+      get(userModel, 'relationshipsByName')
+    );
+
+  assert.equal(relationshipPayloads._lhsRelationshipIsMany, false, 'purpose:user !isMany');
+  assert.equal(relationshipPayloads._rhsRelationshipIsMany, false, 'user:purpose !isMany');
 });

@@ -2839,6 +2839,7 @@ test("deleted records should stay deleted", function(assert) {
     message.destroyRecord()
   });
 
+  self.halt=true;
   run(function() {
     // a new message is added to the user should not resurrected the
     // deleted message
@@ -2853,7 +2854,12 @@ test("deleted records should stay deleted", function(assert) {
         }
       }]
     });
+    self.halt=false;
 
-    assert.equal(get(user, 'messages.length'), 2, 'user should have 2 message since 1 was deleted');
+    assert.deepEqual(
+      get(user, 'messages').mapBy('id'),
+      ['message-2', 'message-3'],
+      'user should have 2 message since 1 was deleted'
+    );
   });
 });

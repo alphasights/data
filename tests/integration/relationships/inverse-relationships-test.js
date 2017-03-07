@@ -484,20 +484,20 @@ test("inverseFor short-circuits when inverse is null", function(assert) {
   var env = setupStore({ post: Post, comment: Comment, user: User, message: Message });
   var store = env.store;
 
-  Post._inverseFor = function() {
-    assert.notOk(true, 'Post model _inverseFor is not called');
+  Post._findInverseFor = function() {
+    assert.notOk(true, 'Post model _findInverseFor is not called');
   };
 
-  Comment._inverseFor = function() {
-    assert.notOk(true, 'Comment model _inverseFor is not called');
+  Comment._findInverseFor = function() {
+    assert.notOk(true, 'Comment model _findInverseFor is not called');
   };
 
-  Message._inverseFor = function() {
-    assert.ok(true, 'Message model _inverseFor is called');
+  Message._findInverseFor = function() {
+    assert.ok(true, 'Message model _findInverseFor is called');
   };
 
-  User._inverseFor = function() {
-    assert.ok(true, 'User model _inverseFor is called');
+  User._findInverseFor = function() {
+    assert.ok(true, 'User model _findInverseFor is called');
   };
 
   run(function() {

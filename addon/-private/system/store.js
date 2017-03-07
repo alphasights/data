@@ -1137,7 +1137,14 @@ Store = Service.extend({
     return internalModel;
   },
 
+  _internalModelHasRelationshipData(modelName, id, relationshipData) {
+    this._relationshipsPayloads.push(modelName, id, relationshipData);
+  },
 
+  _internalModelDestroyed(internalModel) {
+    this._removeFromIdMap(internalModel);
+    this._relationshipsPayloads.unload(internalModel.modelName, internalModel.id);
+  },
 
   /**
     @method findMany
@@ -2406,6 +2413,7 @@ Store = Service.extend({
     heimdall.increment(_setupRelationships);
     let setupToken = heimdall.start('store._setupRelationships');
     let pushed = this._pushedInternalModels;
+    let modelNameToInverseMap = Object.create(null);
 
     for (let i = 0, l = pushed.length; i < l; i += 2) {
       // This will convert relationships specified as IDs into DS.Model instances
@@ -2413,7 +2421,7 @@ Store = Service.extend({
       // relationships.
       let internalModel = pushed[i];
       let data = pushed[i + 1];
-      setupRelationships(this, internalModel, data);
+      setupRelationships(this, internalModel, data, modelNameToInverseMap);
     }
 
     pushed.length = 0;
@@ -2790,7 +2798,7 @@ function _commit(adapter, store, operation, snapshot) {
   }, label);
 }
 
-function inverseRelationshipInitialized(store, internalModel, data, key) {
+function inverseRelationshipInitialized(store, internalModel, data, key, modelNameToInverseMap) {
   let relationshipData = data.relationships[key].data;
 
   if (!relationshipData) {
@@ -2798,8 +2806,15 @@ function inverseRelationshipInitialized(store, internalModel, data, key) {
     return false;
   }
 
-  // TODO: internalModel.type will reify
-  let inverseData = internalModel.type.inverseFor(key, store);
+  let inverseMap = modelNameToInverseMap[internalModel.modelName]
+  if (!inverseMap) {
+    inverseMap = modelNameToInverseMap[internalModel.modelName] = get(internalModel.type, 'inverseMap');
+  }
+  let inverseData = inverseMap[key];
+  if (inverseData === undefined) {
+    inverseData = internalModel.type.inverseFor(key, store);
+  }
+
   if (!inverseData) {
     return false;
   }
@@ -2821,7 +2836,7 @@ function inverseRelationshipInitialized(store, internalModel, data, key) {
   }
 }
 
-function setupRelationships(store, internalModel, data) {
+function setupRelationships(store, internalModel, data, modelNameToInverseMap) {
   if (!data.relationships) {
     return;
   }
@@ -2829,9 +2844,8 @@ function setupRelationships(store, internalModel, data) {
   let relationships = internalModel._relationships;
 
   for (let key in data.relationships) {
-    let relationshipRequiresNotification =
-      relationships.has(key) ||
-      inverseRelationshipInitialized(store, internalModel, data, key);
+    let relationshipRequiresNotification = relationships.has(key) ||
+      inverseRelationshipInitialized(store, internalModel, data, key, modelNameToInverseMap);
 
     if (relationshipRequiresNotification) {
       let relationshipData = data.relationships[key];

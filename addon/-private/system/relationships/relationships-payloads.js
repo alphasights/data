@@ -37,52 +37,46 @@ let get = Ember.get;
 
     relationshipsPayloads.get('hobby', 2, 'user') === {
       {
-        payload: {
-          data: {
-            id: 1,
-            type: 'user'
-          }
-        },
-        // tells us this payload was populated from the inverse side; so if
-        // we're a many side of a relationship we are not fully loaded
-        inverse: true,
+        data: {
+          id: 1,
+          type: 'user'
+        }
       }
     }
 
+  @private
   @class RelationshipsPayloads
 */
 export default class RelationshipsPayloads {
   constructor(store) {
     this._store = store;
-    this._map = {};
+    // cache of `RelationshipPayload`s
+    this._cache = Object.create(null);
   }
 
   /**
     Find the payload for the given relationship of the given model.
 
-    Returns a payload entry which will contain the payload for the given
-    relationship and a flag to denote whether this payload was directly pushed
-    or computed from an inverse
+    Returns the payload for the given relationship, whether raw or computed from
+    the payload of the inverse relationship.
 
     @example
 
       relationshipsPayloads.get('hobby', 2, 'user') === {
         {
-          payload: {
-            data: {
-              id: 1,
-              type: 'user'
-            }
-          },
-          // tells us this payload was populated from the inverse side; so if
-          // we're a many side of a relationship we are not fully loaded
-          inverse: true,
+          data: {
+            id: 1,
+            type: 'user'
+          }
         }
       }
 
+    @method
   */
   get(modelName, id, relationshipName) {
-    let relationshipPayloads = this._getRelationshipPayloads(modelName, relationshipName);
+    let modelClass = this._store._modelFor(modelName);
+    let relationshipsByName = get(modelClass, 'relationshipsByName');
+    let relationshipPayloads = this._getRelationshipPayloads(modelName, relationshipName, modelClass, relationshipsByName, false);
     return relationshipPayloads && relationshipPayloads.get(modelName, id, relationshipName);
   }
 
@@ -106,12 +100,16 @@ export default class RelationshipsPayloads {
         },
       };
       relationshipsPayloads.push('user', 1, userPayload.data.relationships);
+
+    @method
   */
   push(modelName, id, relationshipsData) {
     if (!relationshipsData) { return; }
 
+    let modelClass = this._store._modelFor(modelName);
+    let relationshipsByName = get(modelClass, 'relationshipsByName');
     for (let key in relationshipsData) {
-      let relationshipPayloads = this._getRelationshipPayloads(modelName, key);
+      let relationshipPayloads = this._getRelationshipPayloads(modelName, key, modelClass, relationshipsByName, true);
       if (relationshipPayloads) {
         relationshipPayloads.push(modelName, id, key, relationshipsData[key]);
       }
@@ -119,10 +117,10 @@ export default class RelationshipsPayloads {
   }
 
   unload(modelName, id) {
-    let modelClass = this._store.modelFor(modelName);
+    let modelClass = this._store._modelFor(modelName);
     let relationshipsByName = get(modelClass, 'relationshipsByName');
     relationshipsByName.forEach((_, relationshipName) => {
-      let relationshipPayloads = this._getRelationshipPayloads(modelName, relationshipName);
+      let relationshipPayloads = this._getRelationshipPayloads(modelName, relationshipName, modelClass, relationshipsByName, false);
       if (relationshipPayloads) {
         relationshipPayloads.unload(modelName, id, relationshipName);
       }
@@ -146,56 +144,50 @@ export default class RelationshipsPayloads {
       relationshipPayloads.get('user', 'hobbies') === relationshipPayloads.get('hobby', 'user');
 
     @private
+    @method
   */
-  _getRelationshipPayloads(modelName, relationshipName) {
-    // TODO: lightschema this
-    let modelClass = this._store._modelFor(modelName);
-    let relationshipsByName = get(modelClass, 'relationshipsByName');
-    if (!relationshipsByName.has(relationshipName)) {
-      return;
+  _getRelationshipPayloads(modelName, relationshipName, modelClass, relationshipsByName, init) {
+    if (!relationshipsByName.has(relationshipName)) { return; }
+
+    let key = `${modelName}:${relationshipName}`;
+    if (!this._cache[key] && init) {
+      return this._initializeRelationshipPayloads(modelName, relationshipName, modelClass, relationshipsByName);
     }
 
-    let inverse = this._inverseFor(modelName, relationshipName);
-    let inverseModelName = inverse[0];
-    let inverseRelationshipName = inverse[1];
-    let keyPart1 = `${modelName}:${relationshipName}`;
-    let keyPart2 = `${inverseModelName}:${inverseRelationshipName}`;
-    let key = (keyPart1 < keyPart2) ? `${keyPart1}:${keyPart2}` : `${keyPart2}:${keyPart1}`;
+    return this._cache[key];
+  }
 
-    if (!this._map[key]) {
-      this._map[key] = new RelationshipPayloads(
+  _initializeRelationshipPayloads(modelName, relationshipName, modelClass, relationshipsByName) {
+    let relationshipMeta = relationshipsByName.get(relationshipName);
+    let inverseMeta = modelClass.inverseFor(relationshipName, this._store);
+
+    let inverseModelName;
+    let inverseRelationshipName;
+    let inverseRelationshipMeta;
+
+    if (inverseMeta) {
+      inverseRelationshipName = inverseMeta.name
+      inverseModelName = relationshipMeta.type;
+      inverseRelationshipMeta = get(inverseMeta.type, 'relationshipsByName').get(inverseRelationshipName);
+    } else {
+      inverseModelName = inverseRelationshipName = '';
+      inverseRelationshipMeta = null;
+    }
+
+    let lhsKey = `${modelName}:${relationshipName}`;
+    let rhsKey = `${inverseModelName}:${inverseRelationshipName}`;
+
+    return this._cache[lhsKey] =
+      this._cache[rhsKey] =
+      new RelationshipPayloads(
         this._store,
         modelName,
         relationshipName,
+        relationshipMeta,
         inverseModelName,
-        inverseRelationshipName
+        inverseRelationshipName,
+        inverseRelationshipMeta
       );
-    }
-    return this._map[key];
-  }
-
-  /**
-    Find the invese of a given relationship.
-
-    @return {[String, String]} A tuple of the inverse model and inverse relationship names
-  */
-  _inverseFor(modelName, relationshipName) {
-    // TODO: lightschema this
-    let modelClass = this._store._modelFor(modelName);
-    let relationshipsByName = get(modelClass, 'relationshipsByName');
-    if (!relationshipsByName.has(relationshipName)) {
-      return;
-    }
-
-    let inverseData = modelClass.inverseFor(relationshipName, this._store);
-    if (!inverseData) {
-      return ['', ''];
-    }
-
-    let relationshipMeta = relationshipsByName.get(relationshipName);
-    let inverseModelName = relationshipMeta.type;
-    let inverseRelationshipName = inverseData.name
-    return [inverseModelName, inverseRelationshipName];
   }
 }
 
@@ -241,22 +233,24 @@ export default class RelationshipsPayloads {
   @private
 */
 class RelationshipPayloads {
-  constructor(store, modelName, relationshipName, inverseModelName, inverseRelationshipName) {
+  constructor(store, modelName, relationshipName, relationshipMeta, inverseModelName, inverseRelationshipName, inverseRelationshipMeta) {
     this._store = store;
     this._lhsModelName = modelName;
     this._lhsRelationshipName = relationshipName;
+    this._lhsRelationshipMeta = relationshipMeta;
     this._rhsModelName = inverseModelName;
     this._rhsRelationshipName = inverseRelationshipName;
-    this.__lhsRelationshipIsMany = undefined;
-    this.__rhsRelatinoshipIsMany = undefined;
+    this._rhsRelationshipMeta = inverseRelationshipMeta;
 
     this._lhsPayloads = {};
     if (modelName !== inverseModelName || relationshipName !== inverseRelationshipName) {
       this._rhsPayloads = {};
+      this._isReflexive = false;
     } else {
       // Edge case when we have a reflexive relationship to itself
       //  eg user hasMany friends inverse friends
       this._rhsPayloads = this._lhsPayloads;
+      this._isReflexive = true;
     }
 
     // either canoical on push or pending & flush
@@ -295,6 +289,8 @@ class RelationshipPayloads {
   }
 
   _flushPending() {
+    if (this._pendingPayloads.length === 0) { return; }
+
     let work = this._pendingPayloads.splice(0, this._pendingPayloads.length);
     for (let i=0; i<work.length; ++i) {
       let modelName = work[i][0];
@@ -302,121 +298,89 @@ class RelationshipPayloads {
       let relationshipName = work[i][2];
       let relationshipData = work[i][3];
 
-      let entry = {
-        payload: relationshipData,
-        inverse: false
-      };
       // TODO: maybe delay this slightly?
-      let inverseEntry = {
-        payload: {
-          data: {
-            id: id,
-            type: modelName
-          }
-        },
-        inverse: true
+      let inverseRelationshipData = {
+        data: {
+          id: id,
+          type: modelName
+        }
       }
 
       if (modelName === this._lhsModelName && relationshipName === this._lhsRelationshipName) {
         this._removeInverse(id, this._lhsPayloads[id], this._rhsPayloads);
-        this._lhsPayloads[id] = entry;
-        this._populateInverse(relationshipData, inverseEntry, this._rhsPayloads, this._rhsRelationshipIsMany);
+        this._lhsPayloads[id] = relationshipData;
+        this._populateInverse(relationshipData, inverseRelationshipData, this._rhsPayloads, this._rhsRelationshipIsMany);
       } else {
         this._removeInverse(id, this._rhsPayloads[id], this._lhsPayloads);
-        this._rhsPayloads[id] = entry;
-        this._populateInverse(relationshipData, inverseEntry, this._lhsPayloads, this._lhsRelationshipIsMany);
+        this._rhsPayloads[id] = relationshipData;
+        this._populateInverse(relationshipData, inverseRelationshipData, this._lhsPayloads, this._lhsRelationshipIsMany);
       }
     }
   }
 
-  _inverseLoaded(entry) {
-    let data = entry && entry.payload && entry.payload.data;
+  _inverseLoaded(payload) {
+    let data = payload && payload.data;
     if (!data) { return false; }
 
     if (Array.isArray(data)) {
       for (let i=0; i<data.length; ++i) {
-        if (this._hasRecordForId(this._store, data[i].type, data[i].id)) {
+        if (hasRecordForId(this._store, data[i].type, data[i].id)) {
           return true;
         }
       }
       return false;
     } else {
-      return this._hasRecordForId(this._store, data.type, data.id);
+      return hasRecordForId(this._store, data.type, data.id);
     }
   }
 
-  _hasRecordForId(store, type, id) {
-    return typeof type === 'string' &&
-      typeof id !== 'undefined' &&
-      id !== null &&
-      store.hasRecordForId(type, id);
-  }
-
-  _populateInverse(relationshipData, inverseEntry, inversePayloads, inverseIsMany) {
+  _populateInverse(relationshipData, inversePayload, inversePayloads, inverseIsMany) {
     if (!relationshipData.data) { return; }
 
     if (Array.isArray(relationshipData.data)) {
       for (let i=0; i<relationshipData.data.length; ++i) {
         let inverseId = relationshipData.data[i].id;
-        this._addToInverse(inverseEntry, inverseId, inversePayloads, inverseIsMany);
+        this._addToInverse(inversePayload, inverseId, inversePayloads, inverseIsMany);
       }
     } else {
       let inverseId = relationshipData.data.id;
-      this._addToInverse(inverseEntry, inverseId, inversePayloads, inverseIsMany);
+      this._addToInverse(inversePayload, inverseId, inversePayloads, inverseIsMany);
     }
   }
 
-  _addToInverse(inverseEntry, inverseId, inversePayloads, inverseIsMany) {
-    let existingEntry = inversePayloads[inverseId];
-    let existingData = existingEntry && existingEntry.payload && existingEntry.payload.data;
+  _addToInverse(inversePayload, inverseId, inversePayloads, inverseIsMany) {
+    if (this._isReflexive && inversePayload.data.id === inverseId) {
+      // eg <user:1>.friends = [{ id: 1, type: 'user' }]
+      return;
+    }
+
+    let existingPayload = inversePayloads[inverseId];
+    let existingData = existingPayload && existingPayload.data;
 
     if (Array.isArray(existingData)) {
-      existingData.push(inverseEntry.payload.data);
+      existingData.push(inversePayload.data);
     } else {
       if (inverseIsMany) {
         inversePayloads[inverseId] = {
-          payload: {
-            data: [inverseEntry.payload.data]
-          },
-          inverse: true
+          data: [inversePayload.data]
         }
       } else {
-        inversePayloads[inverseId] = inverseEntry;
+        inversePayloads[inverseId] = inversePayload;
       }
     }
   }
 
   get _lhsRelationshipIsMany() {
-    if (this.__lhsRelatinoshipIsMany === undefined) {
-      if (this._lhsModelName) {
-        let modelClass = this._store.modelFor(this._lhsModelName);
-        let relationshipsByName = get(modelClass, 'relationshipsByName');
-        let relationshipMeta = relationshipsByName.get(this._lhsRelationshipName);
-        this.__lhsRelatinoshipIsMany = (relationshipMeta.kind === 'hasMany');
-      } else {
-        this.__lhsRelatinoshipIsMany = false;
-      }
-    }
-    return this.__lhsRelatinoshipIsMany;
+    return this._lhsRelationshipMeta && this._lhsRelationshipMeta.kind === 'hasMany';
   }
 
   get _rhsRelationshipIsMany() {
-    if (this.__rhsRelatinoshipIsMany === undefined) {
-      if (this._rhsModelName) {
-        let modelClass = this._store.modelFor(this._rhsModelName);
-        let relationshipsByName = get(modelClass, 'relationshipsByName');
-        let relationshipMeta = relationshipsByName.get(this._rhsRelationshipName);
-        this.__rhsRelatinoshipIsMany = (relationshipMeta.kind === 'hasMany');
-      } else {
-        this.__rhsRelatinoshipIsMany = false;
-      }
-    }
-    return this.__rhsRelatinoshipIsMany;
+    return this._rhsRelationshipMeta && this._rhsRelationshipMeta.kind === 'hasMany';
   }
 
   // TODO: diff rather than removeall addall?
-  _removeInverse(id, entry, inversePayloads) {
-    let data = entry && entry.payload && entry.payload.data;
+  _removeInverse(id, payload, inversePayloads) {
+    let data = payload && payload.data;
     if (!data) { return; }
 
     if (Array.isArray(data)) {
@@ -429,18 +393,25 @@ class RelationshipPayloads {
   }
 
   _removeFromInverse(id, inverseId, inversePayloads) {
-    let inverseEntry = inversePayloads[inverseId];
-    let data = inverseEntry && inverseEntry.payload && inverseEntry.payload.data;
+    let inversePayload = inversePayloads[inverseId];
+    let data = inversePayload && inversePayload.data;
 
     if (!data) { return; }
 
     if (Array.isArray(data)) {
-      inverseEntry.payload.data = data.filter((x) => x.id !== id);
+      inversePayload.data = data.filter((x) => x.id !== id);
     } else {
       inversePayloads[inverseId] = {
-        payload: { data: null },
-        inverse: true
+        data: null
       };
     }
   }
 }
+
+function hasRecordForId(store, type, id) {
+  return typeof type === 'string' &&
+    typeof id !== 'undefined' &&
+    id !== null &&
+    store.hasRecordForId(type, id);
+}
+

@@ -91,8 +91,8 @@ test("can unload a single record", function(assert) {
 
   let relPayloads = env.store._relationshipsPayloads;
 
-  assert.equal(relPayloads.get('person', 1, 'cars').payload.data.length, 1, 'one car relationship payload is cached');
-  assert.equal(relPayloads.get('person', 1, 'boats').payload.data.length, 1, 'one boat relationship payload is cached');
+  assert.equal(relPayloads.get('person', 1, 'cars').data.length, 1, 'one car relationship payload is cached');
+  assert.equal(relPayloads.get('person', 1, 'boats').data.length, 1, 'one boat relationship payload is cached');
 
   Ember.run(function() {
     adam.unloadRecord();
@@ -153,7 +153,7 @@ test("can unload all records for a given type", function(assert) {
 
   let relPayloads = env.store._relationshipsPayloads;
 
-  assert.equal(relPayloads.get('car', 1, 'person').payload.data.id, 1, 'car - person payload is loaded');
+  assert.equal(relPayloads.get('car', 1, 'person').data.id, 1, 'car - person payload is loaded');
 
   Ember.run(function() {
     env.store.unloadAll('person');
@@ -164,7 +164,7 @@ test("can unload all records for a given type", function(assert) {
   assert.equal(env.store._internalModelsFor('person').length, 0, 'zero person internalModels loaded');
   assert.equal(env.store._internalModelsFor('car').length, 1, 'one car internalModel loaded');
 
-  assert.equal(relPayloads.get('car', 1, 'person').payload.data.id, 1, 'car - person payload stays loaded when only the other side is unloaded');
+  assert.equal(relPayloads.get('car', 1, 'person').data.id, 1, 'car - person payload stays loaded when only the other side is unloaded');
 });
 
 test("can unload all records", function(assert) {
@@ -366,7 +366,7 @@ test('unloading a disconnected subgraph clears the relevant internal models', fu
 
   let relPayloads = env.store._relationshipsPayloads;
 
-  assert.equal(relPayloads.get('person', 1, 'cars').payload.data.length, 2, 'person - cars relationship payload loaded');
+  assert.equal(relPayloads.get('person', 1, 'cars').data.length, 2, 'person - cars relationship payload loaded');
 
   let checkOrphanCalls = 0;
   let cleanupOrphanCalls = 0;

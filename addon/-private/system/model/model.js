@@ -1308,27 +1308,21 @@ Model.reopenClass({
    @return {Object} the inverse relationship, or null
    */
   inverseFor(name, store) {
-    let relationship = get(this, 'relationshipsByName').get(name);
-    if (!relationship) {
-      return null;
-    }
-
-    let options = relationship.options;
-    if (options && options.inverse === null) {
-      return null;
-    }
-
-    return this._inverseFor(name, store);
-  },
-
-  _inverseFor(name, store) {
     let inverseMap = get(this, 'inverseMap');
     if (inverseMap[name]) {
       return inverseMap[name];
     } else {
-      let inverse = this._findInverseFor(name, store);
-      inverseMap[name] = inverse;
-      return inverse;
+      let relationship = get(this, 'relationshipsByName').get(name);
+      if (!relationship) {
+        return inverseMap[name] = null;
+      }
+
+      let options = relationship.options;
+      if (options && options.inverse === null) {
+        return inverseMap[name] = null;
+      }
+
+      return inverseMap[name] = this._findInverseFor(name, store);
     }
   },
 
