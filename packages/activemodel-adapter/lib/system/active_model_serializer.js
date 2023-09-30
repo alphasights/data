@@ -1,0 +1,251 @@
+import {singularize} from "../../../ember-inflector/lib/main";
+import RESTSerializer from "../../../ember-data/lib/serializers/rest_serializer";
+/**
+  @module ember-data
+*/
+
+var get = Ember.get,
+    forEach = Ember.EnumerableUtils.forEach,
+    camelize =   Ember.String.camelize,
+    capitalize = Ember.String.capitalize,
+    decamelize = Ember.String.decamelize,
+    underscore = Ember.String.underscore;
+/**
+  The ActiveModelSerializer is a subclass of the RESTSerializer designed to integrate
+  with a JSON API that uses an underscored naming convention instead of camelCasing.
+  It has been designed to work out of the box with the
+  [active_model_serializers](http://github.com/rails-api/active_model_serializers)
+  Ruby gem. This Serializer expects specific settings using ActiveModel::Serializers,
+  `embed :ids, include: true` which sideloads the records.
+
+  This serializer extends the DS.RESTSerializer by making consistent
+  use of the camelization, decamelization and pluralization methods to
+  normalize the serialized JSON into a format that is compatible with
+  a conventional Rails backend and Ember Data.
+
+  ## JSON Structure
+
+  The ActiveModelSerializer expects the JSON returned from your server
+  to follow the REST adapter conventions substituting underscored keys
+  for camelcased ones.
+
+  ### Conventional Names
+
+  Attribute names in your JSON payload should be the underscored versions of
+  the attributes in your Ember.js models.
+
+  For example, if you have a `Person` model:
+
+  ```js
+  App.FamousPerson = DS.Model.extend({
+    firstName: DS.attr('string'),
+    lastName: DS.attr('string'),
+    occupation: DS.attr('string')
+  });
+  ```
+
+  The JSON returned should look like this:
+
+  ```js
+  {
+    "famous_person": {
+      "first_name": "Barack",
+      "last_name": "Obama",
+      "occupation": "President"
+    }
+  }
+  ```
+
+  @class ActiveModelSerializer
+  @namespace DS
+  @extends DS.RESTSerializer
+*/
+var ActiveModelSerializer = RESTSerializer.extend({
+  // SERIALIZE
+
+  /**
+    Converts camelCased attributes to underscored when serializing.
+
+    @method keyForAttribute
+    @param {String} attribute
+    @return String
+  */
+  keyForAttribute: function(attr) {
+    return decamelize(attr);
+  },
+
+  /**
+    Underscores relationship names and appends "_id" or "_ids" when serializing
+    relationship keys.
+
+    @method keyForRelationship
+    @param {String} key
+    @param {String} kind
+    @return String
+  */
+  keyForRelationship: function(key, kind) {
+    key = decamelize(key);
+    if (kind === "belongsTo") {
+      return key + "_id";
+    } else if (kind === "hasMany") {
+      return singularize(key) + "_ids";
+    } else {
+      return key;
+    }
+  },
+
+  /*
+    Does not serialize hasMany relationships by default.
+  */
+  serializeHasMany: Ember.K,
+
+  /**
+    Underscores the JSON root keys when serializing.
+
+    @method serializeIntoHash
+    @param {Object} hash
+    @param {subclass of DS.Model} type
+    @param {DS.Model} record
+    @param {Object} options
+  */
+  serializeIntoHash: function(data, type, record, options) {
+    var root = underscore(decamelize(type.typeKey));
+    data[root] = this.serialize(record, options);
+  },
+
+  /**
+    Serializes a polymorphic type as a fully capitalized model name.
+
+    @method serializePolymorphicType
+    @param {DS.Model} record
+    @param {Object} json
+    @param relationship
+  */
+  serializePolymorphicType: function(record, json, relationship) {
+    var key = relationship.key,
+        belongsTo = get(record, key);
+
+    if (belongsTo) {
+      key = this.keyForAttribute(key);
+      json[key + "_type"] = capitalize(belongsTo.constructor.typeKey);
+    }
+  },
+
+  // EXTRACT
+
+  /**
+    Add extra step to `DS.RESTSerializer.normalize` so links are normalized.
+
+    If your payload looks like:
+
+    ```js
+    {
+      "post": {
+        "id": 1,
+        "title": "Rails is omakase",
+        "links": { "flagged_comments": "api/comments/flagged" }
+      }
+    }
+    ```
+
+    The normalized version would look like this
+
+    ```js
+    {
+      "post": {
+        "id": 1,
+        "title": "Rails is omakase",
+        "links": { "flaggedComments": "api/comments/flagged" }
+      }
+    }
+    ```
+
+    @method normalize
+    @param {subclass of DS.Model} type
+    @param {Object} hash
+    @param {String} prop
+    @return Object
+  */
+
+  normalize: function(type, hash, prop) {
+    this.normalizeLinks(hash);
+
+    return this._super(type, hash, prop);
+  },
+
+  /**
+    Convert `snake_cased` links  to `camelCase`
+
+    @method normalizeLinks
+    @param {Object} data
+  */
+
+  normalizeLinks: function(data){
+    if (data.links) {
+      var links = data.links;
+
+      for (var link in links) {
+        var camelizedLink = camelize(link);
+
+        if (camelizedLink !== link) {
+          links[camelizedLink] = links[link];
+          delete links[link];
+        }
+      }
+    }
+  },
+
+  /**
+    Normalize the polymorphic type from the JSON.
+
+    Normalize:
+    ```js
+      {
+        id: "1"
+        minion: { type: "evil_minion", id: "12"}
+      }
+    ```
+
+    To:
+    ```js
+      {
+        id: "1"
+        minion: { type: "evilMinion", id: "12"}
+      }
+    ```
+
+    @method normalizeRelationships
+    @private
+  */
+  normalizeRelationships: function(type, hash) {
+    var payloadKey, payload;
+
+    if (this.keyForRelationship) {
+      type.eachRelationship(function(key, relationship) {
+        if (relationship.options.polymorphic) {
+          payloadKey = this.keyForAttribute(key);
+          payload = hash[payloadKey];
+          if (payload && payload.type) {
+            payload.type = this.typeForRoot(payload.type);
+          } else if (payload && relationship.kind === "hasMany") {
+            var self = this;
+            forEach(payload, function(single) {
+              single.type = self.typeForRoot(single.type);
+            });
+          }
+        } else {
+          payloadKey = this.keyForRelationship(key, relationship.kind);
+          payload = hash[payloadKey];
+        }
+
+        hash[key] = payload;
+
+        if (key !== payloadKey) {
+          delete hash[payloadKey];
+        }
+      }, this);
+    }
+  }
+});
+
+export default ActiveModelSerializer;
